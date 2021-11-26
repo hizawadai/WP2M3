@@ -1,90 +1,86 @@
 <?php
-class User extends CI_Controller 
-{
-	public function __construct()
-	{
-		parent::__construct();
-		$this->load->model('M_user', 'model');
-		$this->table = 'user';
-        if(!$this->session->userdata('email'))
-        {
-            redirect('login');
-        }
-	}
+defined('BASEPATH') or exit('No direct script access allowed');
 
-	public function add()
-	{
-		$this->load->view('user_add');
-	}
-	public function save()
-	{
-		if(isset($_POST['kirim']))
-		{
-			$email = $this->input->post('email');
-			$pass = $this->input->post('password');
-			$nama = $this->input->post('nama');
-			//untuk cek apakah email, password, dan nama sudah terisi
-			if($email and $pass and $nama)
-			{
-				//untuk cek apakah password lebih dari 6 karakter
-				if(strlen($pass) > 6)
-				{
-					$data = [
-					'email'=>$email,
-					'password'=>$pass,
-					'nama'=>$nama
-					];
-					$this->model->insert_data($this->table, $data);
-				}
-			}
-			redirect('user/add');
-		}
-	}
-    public function show()
+class User extends CI_Controller
+{
+    public function __construct()
     {
-	$data['users'] = $this->model->get_all_data($this->table);
-	$this->load->view('user_show', $data);
+        
+        parent::__construct();
+        cek_login();
     }
-    public function edit($id)
+
+    public function index()
     {
-	//mengambil data dari model berdasarkan ID
-	$data['user'] = $this->model->get_data($this->table, ['id' => $id])->row();
-	//mengirimkan data user tersebut ke view
-	$this->load->view('user_edit', $data);
+        $data['judul'] = 'Profil Saya';
+        $data['user'] = $this->ModelUser->cekData(['email' => $this->session->userdata('email')])->row_array();
+
+        $this->load->view('templates/header', $data);
+        $this->load->view('templates/sidebar', $data);
+        $this->load->view('templates/topbar', $data);
+        $this->load->view('user/index', $data);
+        $this->load->view('templates/footer');
     }
-    public function update()
+
+    public function anggota()
     {
-	if(isset($_POST['ubah']))
-	{
-		//mengambil data email, password, nama, dan id dari client side
-		$email = $this->input->post('email');
-		$pass = $this->input->post('password');
-		$nama = $this->input->post('nama');
-		$id = $this->input->post('id');
-		//untuk cek apakah email, password, dan nama sudah terisi
-		if($email and $pass and $nama)
-		{
-			//untuk cek apakah password lebih dari 6 karakter
-			if(strlen($pass) > 6)
-			{
-				$data = [
-				'email'=>$email,
-				'password'=>$pass,
-				'nama'=>$nama
-				];
-				//memanggil function update_data pada model
-                                $this->model->update_data($this->table, $data, ['id' => $id]);
-			}
-		}
-		redirect('user/show');
-	}
+        $data['judul'] = 'Data Anggota';
+        $data['user'] = $this->ModelUser->cekData(['email' => $this->session->userdata('email')])->row_array();
+        $this->db->where('role_id', 1);
+        $data['anggota'] = $this->db->get('user')->result_array();
+        $this->load->view('templates/header', $data);
+        $this->load->view('templates/sidebar', $data);
+        $this->load->view('templates/topbar', $data);
+        $this->load->view('user/anggota', $data);
+        $this->load->view('templates/footer');
     }
-    public function delete($id)
+
+    public function ubahProfil()
     {
-	//meminta model untuk menghapus data dengan id = $id
-	$delete = $this->model->delete_data($this->table, ['id'=>$id]);
-	//jika data berhasil dihapus, maka pengunjung diarahkan ke halaman show
-	if($delete)
-		redirect('user/show');
+        $data['judul'] = 'Ubah Profil';
+        $data['user'] = $this->ModelUser->cekData(['email' => $this->session->userdata('email')])->row_array();
+
+        $this->form_validation->set_rules('nama', 'Nama Lengkap', 'required|trim', [
+                'required' => 'Nama tidak Boleh Kosong'
+        ]);
+
+        if ($this->form_validation->run() == false) {
+            $this->load->view('templates/header', $data);
+            $this->load->view('templates/sidebar', $data);
+            $this->load->view('templates/topbar', $data);
+            $this->load->view('user/ubah-profile', $data);
+            $this->load->view('templates/footer');
+        } else {
+            $nama = $this->input->post('nama', true);
+            $email = $this->input->post('email', true);
+            //jika ada gambar yang akan diupload
+            $upload_image = $_FILES['image']['name'];
+
+            if ($upload_image) {
+                $config['upload_path'] = './assets/img/profile/';
+                $config['allowed_types'] = 'gif|jpg|png';
+                $config['max_size'] = '3000';
+                $config['max_width'] = '1024';
+                $config['max_height'] = '1000';
+                $config['file_name'] = 'pro' . time();
+				
+                $this->load->library('upload', $config);
+
+                if ($this->upload->do_upload('image')) {
+                    $gambar_lama = $data['user']['image'];
+                    if ($gambar_lama != 'default.jpg') {
+                        unlink(FCPATH . 'assets/img/profile/' . $gambar_lama);
+                    }
+                    $gambar_baru = $this->upload->data('file_name');
+                    $this->db->set('image', $gambar_baru);
+                } else { }
+            }
+            $this->db->set('nama', $nama);
+            $this->db->where('email', $email);
+            $this->db->update('user');
+            $this->session->set_flashdata('pesan', '<div class="alert alert-success alert-message" role="alert">Profil 
+Berhasil diubah </div>');
+            redirect('user');
+        }
     }
 }
