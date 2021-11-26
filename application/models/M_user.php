@@ -24,4 +24,8 @@ class M_user extends CI_Model
 	//menghapus data pada tabel $table dengan nilai kolom sama dengan $where
 	return $this->db->delete($table, $where);
     }
+    public function cekData($where = null)
+    {
+    return $this->db->get_where('user', $where);
+    }
 }
